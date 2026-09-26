@@ -51,7 +51,11 @@ const {
  * authenticated user could release another user's escrow by passing the
  * victim's wallet address.
  */
-router.post("/:jobId/release", verifyJWT, async (req, res, next) => {
+router.post(
+  "/:jobId/release",
+  escrowActionRateLimiter,
+  verifyJWT,
+  async (req, res, next) => {
   try {
     const { jobId } = req.params;
     const { contractTxHash } = req.body;

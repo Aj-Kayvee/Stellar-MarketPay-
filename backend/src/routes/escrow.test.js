@@ -1,5 +1,10 @@
 "use strict";
 
+// This suite exercises every escrow route through a single shared
+// escrowActionRateLimiter instance, so relax the limiter for the test run
+// (same convention as insights/transactions/webhooks test suites).
+process.env.RATE_LIMIT_SCALE = process.env.RATE_LIMIT_SCALE || "1000";
+
 /**
  * src/routes/escrow.test.js
  *
