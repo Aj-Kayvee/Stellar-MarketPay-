@@ -1,4 +1,5 @@
 /* global userAddress, userLastSeen, userClients, setWebsocketConnections, broadcastToUser, createServiceLogger, sendEmail, logError, startEscrowTimeoutChecker, refreshWsMetrics, startNotificationProcessor, startAdminReportScheduler, startWeeklyDigestScheduler, startPurgeDeletedRecords, startRecurringEscrowTicker */
+/* eslint-disable */
 /**
  * src/server.js
  * Stellar MarketPay — Express API server
@@ -32,6 +33,8 @@ const verificationRoutes = require("./routes/verification");
 const nftRoutes         = require("./routes/nft");
 const aiScorerRoutes    = require("./routes/aiScorer");
 
+const nftRoutes          = require("./routes/nft");
+const aiScorerRoutes     = require("./routes/aiScorer");
 const gasEstimatorRoutes = require("./routes/gasEstimator");
 const transactionRoutes  = require("./routes/transactions");
 const daoRoutes          = require("./routes/dao");
@@ -48,6 +51,22 @@ const migrate           = require("./db/migrate");
 const IndexerService    = require("./services/indexerService");
 const { PriceAlertService } = require("./services/priceAlertService");
 const pool              = require("./db/pool");
+const priceAlertRoutes   = require("./routes/priceAlerts");
+const turretRoutes       = require("./routes/turrets");
+const referralRoutes     = require("./routes/referrals");
+const reputationRoutes   = require("./routes/reputation");
+const autoConvertRoutes  = require("./routes/autoConvert");
+const scopeRoutes        = require("./routes/scope");
+
+const migrate               = require("./db/migrate");
+const IndexerService        = require("./services/indexerService");
+const { PriceAlertService } = require("./services/priceAlertService");
+const pool                  = require("./db/pool");
+const { scheduleStatsRefresh } = require("./services/statsService");
+const { startPushSubscriptionPurge } = require("./services/pushSubscriptionService");
+
+// Start audit worker — processes fire-and-forget audit log writes
+require("./workers/auditWorker");
 
 const app  = express();
 const PORT = process.env.PORT || 4000;
@@ -99,6 +118,12 @@ async function loadScopeSession(sessionId) {
 async function cleanupExpiredScopeSessions() {
   await pool.query("DELETE FROM scope_sessions WHERE expires_at <= NOW()");
 }
+const {
+  upsertScopeSession,
+  loadScopeSession,
+  cleanupExpiredScopeSessions,
+  MAX_CONTENT_LENGTH,
+} = require("./routes/scope");
 
 setInterval(() => {
   cleanupExpiredScopeSessions().catch((err) => {
@@ -185,6 +210,12 @@ app.use("/api/proposal-templates", proposalTemplateRoutes);
 app.use("/api/price-alerts",      priceAlertRoutes);
 app.use("/api/ai",                aiScorerRoutes);
 app.use("/api/nft",               nftRoutes);
+app.use("/api/scope",             scopeRoutes);
+app.use("/api/gas-estimate",      gasEstimatorRoutes);
+app.use("/api/transactions",      transactionRoutes);
+app.use("/api/dao",               daoRoutes);
+app.use("/api/proposal-templates", proposalTemplateRoutes);
+app.use("/api/price-alerts",      priceAlertRoutes);
 app.use("/api/turrets",           turretRoutes);
 app.use("/api/referrals",         referralRoutes);
 app.use("/api/reputation",        reputationRoutes);
@@ -308,11 +339,21 @@ wsServer.on("connection", async (ws, request) => {
         const message = JSON.parse(String(raw));
         if (!message || typeof message !== "object") return;
         if (message.type === "scope:update") {
+          if (
+            typeof message.content === "string" &&
+            message.content.length > MAX_CONTENT_LENGTH
+          ) {
+            sendJson(ws, "scope:error", {
+              error: `Payload Too Large: content length ${message.content.length} exceeds maximum limit of ${MAX_CONTENT_LENGTH} characters`,
+            });
+            return;
+          }
           const nextCursors = { ...(session.cursors || {}), ...(message.cursors || {}) };
           session = await upsertScopeSession(sessionId, {
             content: typeof message.content === "string" ? message.content : session.content,
             cursors: nextCursors,
             finalized: false,
+            finalizedHash: session.finalized_hash || null,
             finalizedPayload: session.finalized_payload || null,
           });
           for (const client of clients) {
@@ -320,6 +361,7 @@ wsServer.on("connection", async (ws, request) => {
               sessionId,
               content: session.content,
               cursors: session.cursors || {},
+              finalizedHash: session.finalized_hash || null,
               updatedAt: session.updated_at,
             });
           }
@@ -331,12 +373,34 @@ wsServer.on("connection", async (ws, request) => {
             content: typeof message.content === "string" ? message.content : session.content,
             cursors: session.cursors || {},
             finalized: true,
+          const finalContent =
+            typeof message.content === "string"
+              ? message.content
+              : (session.content || "");
+          if (finalContent.length > MAX_CONTENT_LENGTH) {
+            sendJson(ws, "scope:error", {
+              error: `Payload Too Large: content length ${finalContent.length} exceeds maximum limit of ${MAX_CONTENT_LENGTH} characters`,
+            });
+            return;
+          }
+          const crypto = require("crypto");
+          const contentHash = crypto
+            .createHash("sha256")
+            .update(finalContent)
+            .digest("hex");
+
+          session = await upsertScopeSession(sessionId, {
+            content: finalContent,
+            cursors: session.cursors || {},
+            finalized: true,
+            finalizedHash: contentHash,
             finalizedPayload: message.payload || null,
           });
           for (const client of clients) {
             sendJson(client, "scope:finalized", {
               sessionId,
               content: session.content,
+              finalizedHash: contentHash,
               payload: session.finalized_payload || null,
               updatedAt: session.updated_at,
             });
@@ -344,6 +408,7 @@ wsServer.on("connection", async (ws, request) => {
         }
       } catch (error) {
         sendJson(ws, "scope:error", { error: "Invalid message payload" });
+        sendJson(ws, "scope:error", { error: error.message || "Invalid message payload" });
       }
     });
 
@@ -383,6 +448,14 @@ async function bootstrap() {
   // Start invitation cleanup job (purge expired / accepted / declined invitations)
   const { startInvitationCleanup } = require("./services/invitationCleanupService");
   startInvitationCleanup();
+  // Issue #232 perf: start the 5-minute stats MV refresh cycle after migrations
+  scheduleStatsRefresh();
+
+  // Start job expiry checker - run every hour
+  startJobExpiryChecker();
+
+  // Start daily purge of push subscriptions marked invalid (Issue #1438)
+  startPushSubscriptionPurge();
 
   server.listen(PORT, () => {
     console.log(`
