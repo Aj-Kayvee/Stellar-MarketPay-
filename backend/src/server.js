@@ -56,6 +56,7 @@ const referralRoutes     = require("./routes/referrals");
 const reputationRoutes   = require("./routes/reputation");
 const autoConvertRoutes  = require("./routes/autoConvert");
 const scopeRoutes        = require("./routes/scope");
+const analyticsRoutes    = require("./routes/analytics");
 
 const migrate               = require("./db/migrate");
 const IndexerService        = require("./services/indexerService");
@@ -70,6 +71,7 @@ require("./workers/auditWorker");
 require("./workers/linkVerificationWorker");
 
 const app  = express();
+app.set("trust proxy", 1);
 const PORT = process.env.PORT || 4000;
 const server = http.createServer(app);
 const WS_OPEN = 1;
@@ -178,7 +180,7 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 150, standardHeaders: true, legacyHeaders: true }));
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 150, standardHeaders: true, legacyHeaders: true, keyGenerator: (req) => req.ip }));
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use("/health",            healthRoutes);
@@ -221,6 +223,7 @@ app.use("/api/turrets",           turretRoutes);
 app.use("/api/referrals",         referralRoutes);
 app.use("/api/reputation",        reputationRoutes);
 app.use("/api/auto-convert",      autoConvertRoutes);
+app.use("/api/analytics",         analyticsRoutes);
 
 // 404 handler — must come after all routes
 app.use((req, res) => {
