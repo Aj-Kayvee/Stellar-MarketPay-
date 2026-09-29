@@ -92,6 +92,8 @@
     "eslint": "$eslint",
     "axios": "^1.20.0",
     "toml": "^5.0.0",
-    "postcss": "$postcss"
+    "postcss": "$postcss",
+    "fast-uri": "^3.1.7",
+    "image-size": "^2.0.3"
   }
 }

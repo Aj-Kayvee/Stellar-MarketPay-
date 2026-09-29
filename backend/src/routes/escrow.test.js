@@ -54,6 +54,7 @@ jest.mock("../services/referralService", () => ({
 
 jest.mock("../services/escrowService", () => ({
   timeoutRefund: jest.fn(),
+  getEscrowField: jest.fn().mockResolvedValue("1000"),
   releaseMilestone: jest.fn(),
   rejectMilestone: jest.fn(),
   disputeMilestone: jest.fn(),
