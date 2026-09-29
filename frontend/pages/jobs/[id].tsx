@@ -1,3 +1,4 @@
+import SubmitDeliverableHash from "@/components/SubmitDeliverableHash";
 import TimeTracker from "@/components/TimeTracker";
 import FeeEstimationModal from "@/components/FeeEstimationModal";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -725,6 +726,10 @@ export default function JobDetail({ publicKey, onConnect, ssrJob, ogBaseUrl }: J
           <TimeTracker jobId={job.id} isFreelancer={isFreelancer} isClient={isClient} />
         )}
 
+        {isFreelancer && job.status === "in_progress" && publicKey && (
+          <SubmitDeliverableHash jobId={job.id} freelancerAddress={publicKey} />
+        )}
+
         {/* ── Applications list (client only, real-time via RealtimeBidComparison) ── */}
         {isClient && (
           <div className="mb-6">
@@ -732,6 +737,7 @@ export default function JobDetail({ publicKey, onConnect, ssrJob, ogBaseUrl }: J
               jobId={job.id}
               initialApplications={applications}
               isClient={isClient}
+              clientAddress={publicKey || job.clientAddress}
               fetchApplications={fetchAppsForJob}
               onAcceptApplication={handleAcceptApplication}
             />
