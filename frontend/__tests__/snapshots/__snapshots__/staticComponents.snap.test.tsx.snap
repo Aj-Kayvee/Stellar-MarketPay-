@@ -1842,7 +1842,7 @@ exports[`static component snapshots Navbar logged in: Navbar logged in 1`] = `
       <button
         aria-label="Open global search"
         class="p-2 rounded-lg text-amber-700 hover:text-amber-300 hover:bg-market-500/8 transition-colors"
-        title="Search (Ctrl/Cmd+K)"
+        title="Search (Ctrl/Cmd+Shift+K)"
         type="button"
       >
         <svg
@@ -2185,7 +2185,7 @@ exports[`static component snapshots Navbar logged out: Navbar logged out 1`] = `
       <button
         aria-label="Open global search"
         class="p-2 rounded-lg text-amber-700 hover:text-amber-300 hover:bg-market-500/8 transition-colors"
-        title="Search (Ctrl/Cmd+K)"
+        title="Search (Ctrl/Cmd+Shift+K)"
         type="button"
       >
         <svg
