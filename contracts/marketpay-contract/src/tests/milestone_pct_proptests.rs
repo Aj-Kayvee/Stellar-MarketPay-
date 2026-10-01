@@ -80,6 +80,10 @@ fn try_create(percentages: &[u32]) -> bool {
 /// allows lengths above the 5-milestone cap. An empty vector is excluded: it is
 /// a valid single-payment escrow (see `test_empty_milestones_vec_is_allowed_as_single_payment`)
 /// rather than an invalid percentage split.
+/// Any percentages whose (u64) sum is not 100. Mixes small values (near the
+/// 100 boundary), zeros, and arbitrary u32s (overflow territory), and allows
+/// non-empty vectors and lengths above the 5-milestone cap. Empty milestone
+/// lists are valid for single-payment escrows.
 fn invalid_sum_percentages() -> impl Strategy<Value = std::vec::Vec<u32>> {
     let pct = prop_oneof![
         4 => 0u32..=100,
