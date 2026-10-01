@@ -367,7 +367,7 @@ let createJob = async function ({
         title.trim(),
         description.trim(),
         parseFloat(budget).toFixed(7),
-        currency || "XLM",
+        currency,
         resolvedCategoryName,
         resolvedCategoryId,
         clientAddress,
@@ -1416,11 +1416,16 @@ async function getRecommendedJobs(publicKey) {
 }
 
 async function getSuggestions(query) {
-  if (!query || query.length < 2) {
+  // `query` originates from the request query string, which may be an array or
+  // object when a parameter is repeated (e.g. ?q=a&q=b). Only a plain string is
+  // a valid search term, so normalize anything else away before using it —
+  // otherwise the tainted value could be interpreted as a non-string type.
+  const normalizedQuery = typeof query === "string" ? query.trim() : "";
+  if (normalizedQuery.length < 2) {
     return { titles: [], skills: [], categories: [] };
   }
 
-  const q = query.trim();
+  const q = normalizedQuery;
 
   try {
     const [titleResults, skillResults] = await Promise.all([
