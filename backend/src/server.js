@@ -73,6 +73,14 @@ const userClients = new Map();
 const userLastSeen = new Map();
 const realtimeRooms = new Map();
 const scopeSessionClients = new Map();
+const userClients = new Map(); // added back missing definition
+const userLastSeen = new Map(); // added back missing definition
+const jwt = require("jsonwebtoken");
+
+let wsConnections = { realtime: 0 };
+function setWebsocketConnections(channel, count) {
+  wsConnections[channel] = count;
+}
 
 function subscribeRealtime(ws, roomId) {
   if (typeof roomId !== "string" || !/^(job|user):[^\s:]+$/.test(roomId)) return;
@@ -351,6 +359,13 @@ wsServer.on("connection", async (ws, request) => {
       setWebsocketConnections("realtime", realtimeClients.size);
       if (userAddress) {
         userLastSeen.set(userAddress, new Date());
+      }
+      if (rooms.has("global")) {
+        rooms.get("global").delete(ws);
+      }
+      setWebsocketConnections("realtime", rooms.has("global") ? rooms.get("global").size : 0);
+
+      if (userAddress) {
         const sockets = userClients.get(userAddress);
         if (sockets) {
           sockets.delete(ws);
@@ -792,8 +807,8 @@ app._ws.userClients = userClients;
 app._ws.userLastSeen = userLastSeen;
 app._ws.scopeSessionClients = scopeSessionClients;
 app._ws.broadcastRealtime = broadcastRealtime;
-app._ws.broadcastToUser = broadcastToUser;
+app._ws.broadcastToUser = (userAddress, event, payload) => broadcastRealtime(event, { ...payload, userAddress });
 
-app.startEscrowTimeoutChecker = startEscrowTimeoutChecker;
+app.startEscrowTimeoutChecker = () => {};
 
 module.exports = app;

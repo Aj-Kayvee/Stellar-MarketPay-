@@ -156,6 +156,12 @@ impl MarketPayContract {
         escrow::timeout_refund(env, job_id, client)
     }
 
+    /// Permissionless resolution after timeout.
+    /// Refunds the client if status is Locked; pays freelancer pro-rata if status is InProgress.
+    pub fn resolve_timeout(env: Env, job_id: String) {
+        escrow::resolve_timeout(env, job_id)
+    }
+
     // ─── Getters ─────────────────────────────────────────────────────────────
 
     /// Get the full escrow record for a job.
@@ -608,6 +614,11 @@ impl MarketPayContract {
     /// Verify that the freelancer-submitted hash matches the expected hash.
     pub fn verify_deliverable_hash(env: Env, job_id: String) -> bool {
         deliverable::verify_deliverable_hash(env, job_id)
+    }
+
+    /// Anchor an IPFS proof CID for the caller's milestone deliverable.
+    pub fn update_deliverable_proof_hash(env: Env, job_id: String, freelancer: Address, hash: String) {
+        deliverable::update_deliverable_proof_hash(env, job_id, freelancer, hash)
     }
 
     /// Get the anchored IPFS proof CID for a job.
