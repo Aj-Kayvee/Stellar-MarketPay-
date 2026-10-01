@@ -90,20 +90,6 @@ router.post("/:jobId/milestones/:milestoneIndex/proof/anchor", async (req, res, 
 });
 
 /**
- * POST /api/escrow/:jobId/release
- *
- * Issue #1401: escrow may only be released by the client who funded it. The
- * caller is identified exclusively by the verified JWT (`req.user.publicKey`);
- * the request body is never trusted to name the client, otherwise any
- * authenticated user could release another user's escrow by passing the
- * victim's wallet address.
- */
-router.post(
-  "/:jobId/release",
-  escrowActionRateLimiter,
-  verifyJWT,
-  async (req, res, next) => {
-/**
  * POST /api/escrow/create
  */
 router.post("/create", escrowActionRateLimiter, async (req, res, next) => {
@@ -121,7 +107,20 @@ router.post("/create", escrowActionRateLimiter, async (req, res, next) => {
   }
 });
 
-router.post("/:jobId/release", async (req, res, next) => {
+/**
+ * POST /api/escrow/:jobId/release
+ *
+ * Issue #1401: escrow may only be released by the client who funded it. The
+ * caller is identified exclusively by the verified JWT (`req.user.publicKey`);
+ * the request body is never trusted to name the client, otherwise any
+ * authenticated user could release another user's escrow by passing the
+ * victim's wallet address.
+ */
+router.post(
+  "/:jobId/release",
+  escrowActionRateLimiter,
+  verifyJWT,
+  async (req, res, next) => {
   try {
     const { jobId } = req.params;
     const { contractTxHash } = req.body;

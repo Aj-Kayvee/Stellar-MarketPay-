@@ -299,7 +299,7 @@ const FREELANCER_EARNINGS_QUERY = `
 async function getFreelancerEarnings(freelancerId = null, options = {}) {
   const months = Math.max(1, parseInt(options.months, 10) || 12);
 
-  return withDailyCache("freelancer-earnings", { freelancerId, months }, async () => {
+  return withCache("freelancer-earnings", { freelancerId, months }, async () => {
     const { rows } = await pool.query(FREELANCER_EARNINGS_QUERY, [freelancerId || null, months]);
 
     return rows.map((r) => ({

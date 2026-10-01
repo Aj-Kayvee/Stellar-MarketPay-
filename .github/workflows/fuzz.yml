@@ -71,6 +71,7 @@ jobs:
 
       - name: Fuzz ${{ matrix.target }} (${{ env.FUZZ_TIME }}s)
         run: |
+          mkdir -p ../crashes/${{ matrix.target }}/
           cargo fuzz run ${{ matrix.target }} \
             -- \
             -max_total_time=${{ env.FUZZ_TIME }} \

@@ -25,7 +25,12 @@ function generateSessionId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
   }
-  return `scope-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  // WebCrypto is available on every supported runtime; derive a random id from
+  // getRandomValues rather than Math.random(), which CodeQL flags as insecure.
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return `scope-${hex}`;
 }
 
 export interface CreatedScopeSession {

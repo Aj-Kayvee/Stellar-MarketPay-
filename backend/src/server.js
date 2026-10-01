@@ -253,6 +253,14 @@ function getScopeSessionSet(sessionId) {
   return scopeSessionClients.get(sessionId);
 }
 
+/** Publish current WebSocket connection counts to the metrics registry. */
+function refreshWsMetrics() {
+  let scopeConnections = 0;
+  for (const clients of scopeSessionClients.values()) scopeConnections += clients.size;
+  setWebsocketConnections("scope", scopeConnections);
+  setWebsocketConnections("realtime", realtimeClients.size);
+}
+
 server.on("upgrade", (request, socket, head) => {
   const url = new URL(request.url, `http://${request.headers.host}`);
   if (url.pathname === "/ws/realtime" || url.pathname.startsWith("/ws/scope/")) {
@@ -363,6 +371,7 @@ wsServer.on("connection", async (ws, request) => {
 
     const clients = getScopeSessionSet(sessionId);
     clients.add(ws);
+    refreshWsMetrics();
 
     let session = await loadScopeSession(sessionId);
     if (!session) {
