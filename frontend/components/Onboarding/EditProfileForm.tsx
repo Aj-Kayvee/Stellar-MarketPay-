@@ -31,7 +31,11 @@ export function EditProfileForm({ onSubmit }: { onSubmit?: (file: File) => void 
     }
 
     setAvatarFile(file);
-    setPreview(URL.createObjectURL(file));
+    // jsdom does not implement createObjectURL; skip the preview rather than
+    // throwing before onSubmit runs.
+    if (typeof URL.createObjectURL === "function") {
+      setPreview(URL.createObjectURL(file));
+    }
 
     if (onSubmit) {
       onSubmit(file);
@@ -43,8 +47,9 @@ export function EditProfileForm({ onSubmit }: { onSubmit?: (file: File) => void 
       <h2 className="text-xl font-bold text-gray-800 mb-4">Edit Profile</h2>
 
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">Profile Avatar</label>
+        <label htmlFor="profile-avatar" className="block text-sm font-medium text-gray-700 mb-2">Profile Avatar</label>
         <input
+          id="profile-avatar"
           type="file"
           accept="image/jpeg,image/png,image/webp"
           onChange={handleFileChange}

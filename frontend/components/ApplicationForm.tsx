@@ -3,7 +3,7 @@
  * Freelancer applies to a job with a proposal and bid amount.
  */
 import { useState, useEffect, useRef } from "react";
-import { submitApplication, fetchProposalTemplates, scoreProposal } from "@/lib/api";
+import { submitApplication, fetchProposalTemplates, scoreProposal, createScopeSession, finalizeScopeSession } from "@/lib/api";
 import type { ProposalScore } from "@/lib/api";
 import type { Job } from "@/utils/types";
 import { formatXLM } from "@/utils/format";
@@ -67,6 +67,11 @@ export default function ApplicationForm({ job, publicKey, biddingPhase = "commit
   const [screeningAnswers, setScreeningAnswers] = useState<Record<string, string>>({});
   const [templates, setTemplates] = useState<{ id: string; name: string; content: string }[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [creatingScope, setCreatingScope] = useState(false);
+  const [scopeShareUrl, setScopeShareUrl] = useState<string | null>(null);
+  const [scopeSessionId, setScopeSessionId] = useState<string | null>(null);
+  const [scopeCopied, setScopeCopied] = useState(false);
+  const [scopeError, setScopeError] = useState<string | null>(null);
 
   const isSubmitting = submitStatus === "submitting";
   const isSubmitted = submitStatus === "success";
@@ -188,6 +193,16 @@ export default function ApplicationForm({ job, publicKey, biddingPhase = "commit
         setSubmitStatus("success");
         setRevealLater(true);
       }
+      if (scopeSessionId) {
+        try {
+          await finalizeScopeSession(scopeSessionId, {
+            content: proposal.trim(),
+            payload: { jobId: String(job.id) },
+          });
+        } catch {
+          // Locking the co-writing session is best-effort; never block submission.
+        }
+      }
       toast.success("Sealed bid commitment submitted.");
       onSuccess?.();
     } catch {
@@ -198,6 +213,41 @@ export default function ApplicationForm({ job, publicKey, biddingPhase = "commit
       toast.error("Failed to submit application. Please try again.");
     } finally {
       submittingRef.current = false;
+    }
+  };
+
+  const handleInviteCollaborator = async () => {
+    if (scopeShareUrl) {
+      try {
+        await navigator.clipboard?.writeText(scopeShareUrl);
+        setScopeCopied(true);
+      } catch {
+        // Clipboard access can be denied; the link stays visible for manual copy.
+      }
+      return;
+    }
+
+    setCreatingScope(true);
+    setScopeError(null);
+    try {
+      const session = await createScopeSession({
+        jobId: String(job.id),
+        createdBy: publicKey,
+        content: proposal,
+      });
+      const url = `${window.location.origin}${session.sharePath}`;
+      setScopeSessionId(session.sessionId);
+      setScopeShareUrl(url);
+      try {
+        await navigator.clipboard?.writeText(url);
+        setScopeCopied(true);
+      } catch {
+        // Clipboard access can be denied; the link stays visible for manual copy.
+      }
+    } catch {
+      setScopeError("Failed to create a co-writing session. Please try again.");
+    } finally {
+      setCreatingScope(false);
     }
   };
 

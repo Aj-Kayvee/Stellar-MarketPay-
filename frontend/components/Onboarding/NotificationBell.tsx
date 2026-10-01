@@ -37,3 +37,6 @@ export function NotificationBell({ unreadCount, onClick }: NotificationBellProps
     </button>
   );
 }
+
+// Alias kept for the onboarding barrel/tests that import the onboarding-specific name.
+export const OnboardingNotificationBell = NotificationBell;

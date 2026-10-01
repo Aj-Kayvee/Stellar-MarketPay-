@@ -47,11 +47,18 @@ function App({ Component, pageProps }: AppProps) {
   const { i18n } = useTranslation("common");
   const initialLocale = getInitialLocale();
 
-  // Resolve the persisted/browser locale during render so the first client
-  // render uses the same locale preference instead of briefly showing English.
-  if (i18n.language !== initialLocale) {
-    void i18n.changeLanguage(initialLocale);
-  }
+  // Sync the persisted/browser locale once the i18next instance is available.
+  // next-i18next only initialises it on the client, so guard the call: during
+  // prerender `i18n` is a placeholder without changeLanguage().
+  useEffect(() => {
+    if (
+      i18n &&
+      typeof i18n.changeLanguage === "function" &&
+      i18n.language !== initialLocale
+    ) {
+      void i18n.changeLanguage(initialLocale);
+    }
+  }, [i18n, initialLocale]);
 
   const isJobDetailPage = router.pathname === "/jobs/[id]";
 

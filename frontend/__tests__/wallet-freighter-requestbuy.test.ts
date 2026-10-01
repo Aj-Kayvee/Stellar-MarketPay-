@@ -1,6 +1,11 @@
 /**
  * __tests__/wallet-freighter-requestbuy.test.ts
  * Unit tests for the Freighter requestBuy() helpers in lib/wallet.ts.
+ *
+ * `window` is a non-configurable accessor on globalThis in jsdom, so these
+ * tests mutate `window.freighter` directly instead of redefining `window`.
+ * The "no window at all" branch is covered in
+ * `wallet-freighter-nowindow.test.ts`, which runs in the node environment.
  */
 import {
   parseVersion,
@@ -10,6 +15,12 @@ import {
   freighterRequestBuy,
   FREIGHTER_REQUEST_BUY_MIN_VERSION,
 } from "../lib/wallet";
+
+const win = window as unknown as { freighter?: unknown };
+
+afterEach(() => {
+  delete win.freighter;
+});
 
 // ── parseVersion ──────────────────────────────────────────────────────────────
 
@@ -72,62 +83,30 @@ describe("isVersionAtLeast", () => {
 // ── getFreighterVersion ───────────────────────────────────────────────────────
 
 describe("getFreighterVersion", () => {
-  const originalWindow = global.window;
-
-  afterEach(() => {
-    // Restore window
-    Object.defineProperty(global, "window", {
-      value: originalWindow,
-      writable: true,
-    });
-  });
-
-  it("returns null when window is undefined", async () => {
-    Object.defineProperty(global, "window", { value: undefined, writable: true });
-    const version = await getFreighterVersion();
-    expect(version).toBeNull();
-  });
-
   it("returns null when window.freighter is not present", async () => {
-    Object.defineProperty(global, "window", {
-      value: { freighter: undefined },
-      writable: true,
-    });
+    delete win.freighter;
     const version = await getFreighterVersion();
     expect(version).toBeNull();
   });
 
   it("returns null when window.freighter.getVersion is absent", async () => {
-    Object.defineProperty(global, "window", {
-      value: { freighter: { isConnected: jest.fn() } },
-      writable: true,
-    });
+    win.freighter = { isConnected: jest.fn() };
     const version = await getFreighterVersion();
     expect(version).toBeNull();
   });
 
   it("returns the version string from window.freighter.getVersion()", async () => {
-    Object.defineProperty(global, "window", {
-      value: {
-        freighter: {
-          getVersion: jest.fn().mockResolvedValue("5.2.1"),
-        },
-      },
-      writable: true,
-    });
+    win.freighter = {
+      getVersion: jest.fn().mockResolvedValue("5.2.1"),
+    };
     const version = await getFreighterVersion();
     expect(version).toBe("5.2.1");
   });
 
   it("returns null when getVersion() throws", async () => {
-    Object.defineProperty(global, "window", {
-      value: {
-        freighter: {
-          getVersion: jest.fn().mockRejectedValue(new Error("Not available")),
-        },
-      },
-      writable: true,
-    });
+    win.freighter = {
+      getVersion: jest.fn().mockRejectedValue(new Error("Not available")),
+    };
     const version = await getFreighterVersion();
     expect(version).toBeNull();
   });
@@ -136,83 +115,48 @@ describe("getFreighterVersion", () => {
 // ── supportsRequestBuy ────────────────────────────────────────────────────────
 
 describe("supportsRequestBuy", () => {
-  afterEach(() => {
-    Object.defineProperty(global, "window", {
-      value: undefined,
-      writable: true,
-    });
-  });
-
   it("returns false when window.freighter is absent", async () => {
-    Object.defineProperty(global, "window", {
-      value: { freighter: undefined },
-      writable: true,
-    });
+    delete win.freighter;
     expect(await supportsRequestBuy()).toBe(false);
   });
 
   it("returns false when requestBuy() method is absent on window.freighter", async () => {
-    Object.defineProperty(global, "window", {
-      value: {
-        freighter: {
-          getVersion: jest.fn().mockResolvedValue("5.2.1"),
-          // no requestBuy
-        },
-      },
-      writable: true,
-    });
+    win.freighter = {
+      getVersion: jest.fn().mockResolvedValue("5.2.1"),
+      // no requestBuy
+    };
     expect(await supportsRequestBuy()).toBe(false);
   });
 
   it("returns false when version is below minimum even if requestBuy() is present", async () => {
-    Object.defineProperty(global, "window", {
-      value: {
-        freighter: {
-          getVersion: jest.fn().mockResolvedValue("4.9.9"),
-          requestBuy: jest.fn(),
-        },
-      },
-      writable: true,
-    });
+    win.freighter = {
+      getVersion: jest.fn().mockResolvedValue("4.9.9"),
+      requestBuy: jest.fn(),
+    };
     expect(await supportsRequestBuy()).toBe(false);
   });
 
   it("returns false when getVersion() returns null", async () => {
-    Object.defineProperty(global, "window", {
-      value: {
-        freighter: {
-          getVersion: jest.fn().mockResolvedValue(null),
-          requestBuy: jest.fn(),
-        },
-      },
-      writable: true,
-    });
+    win.freighter = {
+      getVersion: jest.fn().mockResolvedValue(null),
+      requestBuy: jest.fn(),
+    };
     expect(await supportsRequestBuy()).toBe(false);
   });
 
   it("returns true when requestBuy() is present and version >= minimum", async () => {
-    Object.defineProperty(global, "window", {
-      value: {
-        freighter: {
-          getVersion: jest.fn().mockResolvedValue("5.0.0"),
-          requestBuy: jest.fn(),
-        },
-      },
-      writable: true,
-    });
+    win.freighter = {
+      getVersion: jest.fn().mockResolvedValue("5.0.0"),
+      requestBuy: jest.fn(),
+    };
     expect(await supportsRequestBuy()).toBe(true);
   });
 
   it("returns true for a newer version", async () => {
-    Object.defineProperty(global, "window", {
-      value: {
-        freighter: {
-          getVersion: jest.fn().mockResolvedValue("6.1.0"),
-          requestBuy: jest.fn(),
-        },
-      },
-      writable: true,
-    });
+    win.freighter = {
+      getVersion: jest.fn().mockResolvedValue("6.1.0"),
+      requestBuy: jest.fn(),
+    };
     expect(await supportsRequestBuy()).toBe(true);
   });
 });
@@ -220,18 +164,8 @@ describe("supportsRequestBuy", () => {
 // ── freighterRequestBuy ───────────────────────────────────────────────────────
 
 describe("freighterRequestBuy", () => {
-  afterEach(() => {
-    Object.defineProperty(global, "window", {
-      value: undefined,
-      writable: true,
-    });
-  });
-
   it("throws when window.freighter.requestBuy is not available", async () => {
-    Object.defineProperty(global, "window", {
-      value: { freighter: {} },
-      writable: true,
-    });
+    win.freighter = {};
     await expect(freighterRequestBuy("XLM")).rejects.toThrow(
       "Freighter requestBuy() is not available in this version."
     );
@@ -239,12 +173,7 @@ describe("freighterRequestBuy", () => {
 
   it("calls window.freighter.requestBuy with the correct asset code", async () => {
     const mockRequestBuy = jest.fn().mockResolvedValue(undefined);
-    Object.defineProperty(global, "window", {
-      value: {
-        freighter: { requestBuy: mockRequestBuy },
-      },
-      writable: true,
-    });
+    win.freighter = { requestBuy: mockRequestBuy };
 
     await freighterRequestBuy("XLM");
     expect(mockRequestBuy).toHaveBeenCalledWith({ assetCode: "XLM" });
@@ -254,12 +183,7 @@ describe("freighterRequestBuy", () => {
     const mockRequestBuy = jest
       .fn()
       .mockRejectedValue(new Error("User declined to complete the purchase."));
-    Object.defineProperty(global, "window", {
-      value: {
-        freighter: { requestBuy: mockRequestBuy },
-      },
-      writable: true,
-    });
+    win.freighter = { requestBuy: mockRequestBuy };
 
     await expect(freighterRequestBuy("XLM")).rejects.toThrow(
       "User declined to complete the purchase."

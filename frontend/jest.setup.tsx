@@ -71,6 +71,7 @@ jest.mock("@react-pdf/renderer", () => ({
   Document: ({ children }: any) => children,
   Page: ({ children }: any) => children,
   BlobProvider: ({ children }: any) => children({ blob: new Blob(), url: "" }),
+  renderToBuffer: jest.fn(() => Promise.resolve(Buffer.from("%PDF-1.4\\nmock"))),
 }));
 
 // Mock HTMLCanvasElement for jest-axe tests
